@@ -158,7 +158,6 @@ export async function generateAIReply(
     }
 
     const data = await res.json();
-    // Puter returns: { success: true, result: { message: { content: "..." } } }
     const reply =
       data?.result?.message?.content?.trim() ||
       data?.message?.content?.trim() ||
@@ -174,3 +173,86 @@ export async function generateAIReply(
     return "Apnake ektu wait korte hobe, ami confirm kore janacchi. 🙏";
   }
 }
+
+/**
+ * Call the AI model with an image (vision mode).
+ * GPT-4o-mini supports vision natively — we send the image URL
+ * alongside text so the AI can analyze product images sent by customers.
+ */
+export async function generateVisionReply(
+  systemPrompt: string,
+  imageUrl: string,
+  caption?: string,
+  conversationHistory?: { role: "user" | "assistant"; content: string }[]
+): Promise<string> {
+  const puterToken = process.env.PUTER_API_TOKEN;
+
+  if (!puterToken) {
+    console.warn("[AI Pipeline] PUTER_API_TOKEN not set — using fallback for image");
+    return "Apnar image peyechi! Ektu wait korun, ami check kore janacchi. 🙏";
+  }
+
+  try {
+    // Build the user message with image + optional caption
+    const userContent: any[] = [
+      {
+        type: "image_url",
+        image_url: { url: imageUrl },
+      },
+    ];
+
+    if (caption) {
+      userContent.unshift({ type: "text", text: caption });
+    } else {
+      userContent.unshift({
+        type: "text",
+        text: "Customer sent this product image. Analyze it and check if any product in our catalog matches. Describe what you see and suggest the closest matching product with its price. If no match, say so politely.",
+      });
+    }
+
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+      ...(conversationHistory || []).slice(-6),
+      { role: "user", content: userContent },
+    ];
+
+    const res = await fetch("https://api.puter.com/drivers/call", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${puterToken}`,
+      },
+      body: JSON.stringify({
+        interface: "puter-chat-completion",
+        driver: "openai-completion",
+        method: "complete",
+        args: {
+          messages,
+          model: "gpt-4o-mini",
+          max_tokens: 300,
+          temperature: 0.7,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("[AI Pipeline] Vision error:", errText);
+      return "Apnar image peyechi! Ektu wait korun, ami check korchi. 🙏";
+    }
+
+    const data = await res.json();
+    const reply =
+      data?.result?.message?.content?.trim() ||
+      data?.message?.content?.trim() ||
+      data?.result?.content?.trim() ||
+      "";
+
+    if (reply) return reply;
+    return "Image ta dekhchi, ektu wait korun. 🙏";
+  } catch (err) {
+    console.error("[AI Pipeline] Vision error:", err);
+    return "Apnar image peyechi! Ektu wait korun, ami check korchi. 🙏";
+  }
+}
+
