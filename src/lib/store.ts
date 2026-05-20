@@ -270,6 +270,22 @@ export function getAnalytics(): AnalyticsData {
 }
 
 // ==================== Products ====================
+
+/** Sync a product to Supabase (fire-and-forget, never blocks UI) */
+function syncProductToSupabase(product: Product, action: "upsert" | "delete") {
+  if (typeof window === "undefined") return;
+  try {
+    const puter = (window as any).puter;
+    const userId = puter?.auth?.isSignedIn?.() ? puter.authUser?.uuid : null;
+    if (!userId) return;
+    fetch("/api/products/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, product, action }),
+    }).catch(() => {}); // Silent — Supabase sync is best-effort
+  } catch { /* ignore */ }
+}
+
 export function getProducts(): Product[] {
   return getData().products || [];
 }
@@ -289,6 +305,7 @@ export function createProduct(product: Omit<Product, "id" | "created_at" | "upda
   };
   data.products.push(newProduct);
   persistData();
+  syncProductToSupabase(newProduct, "upsert");
   return newProduct;
 }
 
@@ -299,6 +316,7 @@ export function updateProduct(id: string, updates: Partial<Product>): Product | 
   if (index === -1) return undefined;
   data.products[index] = { ...data.products[index], ...updates, updated_at: new Date().toISOString() };
   persistData();
+  syncProductToSupabase(data.products[index], "upsert");
   return data.products[index];
 }
 
@@ -307,7 +325,27 @@ export function deleteProduct(id: string): boolean {
   if (!data.products) return false;
   const index = data.products.findIndex(p => p.id === id);
   if (index === -1) return false;
+  const deleted = data.products[index];
   data.products.splice(index, 1);
   persistData();
+  syncProductToSupabase(deleted, "delete");
   return true;
 }
+
+/** Bulk sync all products to Supabase (call after initial load or manual sync) */
+export function syncAllProducts() {
+  if (typeof window === "undefined") return;
+  const products = getProducts();
+  if (products.length === 0) return;
+  try {
+    const puter = (window as any).puter;
+    const userId = puter?.auth?.isSignedIn?.() ? puter.authUser?.uuid : null;
+    if (!userId) return;
+    fetch("/api/products/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, product: products, action: "bulk" }),
+    }).catch(() => {});
+  } catch { /* ignore */ }
+}
+

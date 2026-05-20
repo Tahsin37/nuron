@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL UNIQUE,
   business_name TEXT,
+  business_description TEXT,
+  training_data TEXT,
   puter_api_token TEXT,
   groq_api_key TEXT,
   ai_personality TEXT DEFAULT 'friendly',
@@ -35,8 +37,14 @@ CREATE INDEX IF NOT EXISTS idx_bot_connections_user ON bot_connections(user_id);
 CREATE INDEX IF NOT EXISTS idx_bot_connections_bot ON bot_connections(bot_id);
 CREATE INDEX IF NOT EXISTS idx_bot_connections_platform_bot ON bot_connections(platform, bot_id);
 
--- RLS
+-- RLS (safe to re-run)
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bot_connections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all on user_settings" ON user_settings;
+DROP POLICY IF EXISTS "Allow all on bot_connections" ON bot_connections;
 CREATE POLICY "Allow all on user_settings" ON user_settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on bot_connections" ON bot_connections FOR ALL USING (true) WITH CHECK (true);
+
+-- If tables already exist, add new columns
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS business_description TEXT;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS training_data TEXT;

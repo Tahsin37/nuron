@@ -97,7 +97,7 @@ export async function POST(
 
     // ─── Photo messages ───
     if (message.photo && message.photo.length > 0) {
-      return await handlePhotoMessage(botToken, userId, aiKeys, chatId, senderId, senderName, message);
+      return await handlePhotoMessage(botToken, userId, aiKeys, chatId, senderId, senderName, message, settings);
     }
 
     // ─── Text messages ───
@@ -111,7 +111,7 @@ export async function POST(
     if (customerMessage === "/start") {
       const shopName = settings?.business_name || "our shop";
       await sendTelegramMessage(botToken, chatId,
-        `👋 Welcome to <b>${shopName}</b>!\n\nJust type your question — like:\n• <b>price?</b>\n• <b>কত দাম?</b>\n• <b>size available?</b>\n• <b>delivery charge?</b>\n\n📸 You can also <b>send a product image</b> — we'll find the matching product!\n\nWe'll reply instantly! 🚀`
+        `👋 Hey! Welcome to <b>${shopName}</b>.\nAsk me anything about our products — prices, sizes, colors, stock, delivery. You can also send a product photo and I'll find it for you! 📸`
       );
       return NextResponse.json({ ok: true }, { status: 200 });
     }
@@ -135,7 +135,7 @@ export async function POST(
 
     // ─── Regular message → AI reply ───
     console.log(`[Telegram] 📩 Bot:${botId} User:${senderName}: "${customerMessage}"`);
-    return await handleTextMessage(botToken, userId, aiKeys, chatId, senderId, senderName, customerMessage, settings?.business_name);
+    return await handleTextMessage(botToken, userId, aiKeys, chatId, senderId, senderName, customerMessage, settings);
   } catch (err) {
     console.error("[Telegram] Webhook error:", err);
     return NextResponse.json({ ok: true }, { status: 200 });
@@ -151,7 +151,7 @@ async function handleTextMessage(
   senderId: string,
   senderName: string,
   customerMessage: string,
-  businessName?: string
+  settings?: any
 ) {
   const conversation = await getOrCreateConversation(userId, `tg_${senderId}`, senderName);
   if (!conversation) {
@@ -170,7 +170,7 @@ async function handleTextMessage(
 
   const products = await getProductsByUser(userId);
   const history = await getConversationHistory(conversation.id);
-  const systemPrompt = buildSystemPrompt(products, businessName || "our shop");
+  const systemPrompt = buildSystemPrompt(products, settings?.business_name || "our shop", settings?.business_description, settings?.training_data);
   const aiReply = await generateAIReply(systemPrompt, history, aiKeys);
 
   const sent = await sendTelegramMessage(botToken, chatId, aiReply);
@@ -198,7 +198,8 @@ async function handlePhotoMessage(
   chatId: number | string,
   senderId: string,
   senderName: string,
-  message: any
+  message: any,
+  settings?: any
 ) {
   const photos = message.photo;
   const bestPhoto = photos[photos.length - 1];
@@ -227,7 +228,7 @@ async function handlePhotoMessage(
 
   const products = await getProductsByUser(userId);
   const history = await getConversationHistory(conversation.id);
-  const systemPrompt = buildSystemPrompt(products, "our shop");
+  const systemPrompt = buildSystemPrompt(products, settings?.business_name || "our shop", settings?.business_description, settings?.training_data);
   const aiReply = await generateVisionReply(systemPrompt, imageUrl, caption || undefined, history, aiKeys);
 
   const sent = await sendTelegramMessage(botToken, chatId, aiReply);

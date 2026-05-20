@@ -9,6 +9,8 @@ import type { Product } from "./types";
 export interface UserSettings {
   user_id: string;
   business_name?: string;
+  business_description?: string;
+  training_data?: string;
   puter_api_token?: string;
   groq_api_key?: string;
   ai_personality?: string;

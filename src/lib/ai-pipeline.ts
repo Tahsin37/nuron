@@ -39,13 +39,22 @@ export function buildProductContext(products: Product[]): string {
 /**
  * Build the full system prompt for the AI sales employee.
  */
-export function buildSystemPrompt(products: Product[], sellerName?: string): string {
+export function buildSystemPrompt(
+  products: Product[],
+  sellerName?: string,
+  businessDescription?: string,
+  trainingData?: string
+): string {
   const productCatalog = buildProductContext(products);
   const seller = sellerName || "the seller";
 
-  return `You are an AI sales assistant for ${seller}. You reply to customer messages.
+  let prompt = `You are an AI sales assistant for ${seller}. You reply to customer messages.`;
 
-CRITICAL LANGUAGE RULE:
+  if (businessDescription) {
+    prompt += `\n\nABOUT THIS BUSINESS:\n${businessDescription}`;
+  }
+
+  prompt += `\n\nCRITICAL LANGUAGE RULE:
 - Detect the EXACT language the customer writes in.
 - If they write in English → reply in English only.
 - If they write in Bangla (বাংলা) → reply in Bangla only.
@@ -66,9 +75,16 @@ RULES:
 10. If the customer greets you (hi, hello, hey), greet back warmly and ask how you can help.
 
 PRODUCT CATALOG:
-${productCatalog}
+${productCatalog}`;
 
-Remember: You are selling. Be persuasive but honest. Your goal is to convert conversations into orders.`;
+  if (trainingData) {
+    prompt += `\n\nEXAMPLE CONVERSATIONS (learn the tone and style from these):
+${trainingData}`;
+  }
+
+  prompt += `\n\nRemember: You are selling. Be persuasive but honest. Your goal is to convert conversations into orders.`;
+
+  return prompt;
 }
 
 /**

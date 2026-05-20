@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/lib/auth-context";
-import { User, Bell, Shield, Key, Trash2, LogOut, Check, Loader2, Bot, Send, Sparkles, ExternalLink, Copy } from "lucide-react";
+import { syncAllProducts } from "@/lib/store";
+import { User, Bell, Shield, Key, Trash2, LogOut, Check, Loader2, Bot, Send, Sparkles, ExternalLink, BookOpen, MessageSquare, RefreshCw } from "lucide-react";
 
 export default function SettingsPage() {
   const { user, signOut, completeProfile } = useAuth();
@@ -18,7 +19,13 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Telegram connection state
+  // Business context
+  const [businessDescription, setBusinessDescription] = useState("");
+  const [trainingData, setTrainingData] = useState("");
+  const [savingBiz, setSavingBiz] = useState(false);
+  const [savedBiz, setSavedBiz] = useState(false);
+
+  // Telegram
   const [botToken, setBotToken] = useState("");
   const [puterToken, setPuterToken] = useState("");
   const [groqKey, setGroqKey] = useState("");
@@ -27,7 +34,10 @@ export default function SettingsPage() {
   const [connectedBots, setConnectedBots] = useState<any[]>([]);
   const [hasKeys, setHasKeys] = useState({ puter: false, groq: false });
 
-  // Load existing connections on mount
+  // Sync
+  const [syncing, setSyncing] = useState(false);
+
+  // Load existing settings on mount
   useEffect(() => {
     if (!user?.uuid) return;
     fetch(`/api/settings/connect?user_id=${user.uuid}`)
@@ -39,6 +49,8 @@ export default function SettingsPage() {
           if (data.settings.business_name && !profileForm.company) {
             setProfileForm(p => ({ ...p, company: data.settings.business_name }));
           }
+          if (data.settings.business_description) setBusinessDescription(data.settings.business_description);
+          if (data.settings.training_data) setTrainingData(data.settings.training_data);
         }
       })
       .catch(() => {});
@@ -48,7 +60,6 @@ export default function SettingsPage() {
     if (!profileForm.full_name.trim() || !profileForm.email.trim()) return;
     setSaving(true);
     await completeProfile(profileForm);
-    // Also save business_name to Supabase for the bot
     if (user?.uuid && profileForm.company) {
       fetch("/api/settings/connect", {
         method: "POST",
@@ -61,11 +72,29 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleSaveBusinessContext = async () => {
+    if (!user?.uuid) return;
+    setSavingBiz(true);
+    try {
+      await fetch("/api/settings/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.uuid,
+          business_description: businessDescription,
+          training_data: trainingData,
+        }),
+      });
+      setSavedBiz(true);
+      setTimeout(() => setSavedBiz(false), 2000);
+    } catch {}
+    setSavingBiz(false);
+  };
+
   const handleConnectBot = async () => {
     if (!user?.uuid) return;
     setConnecting(true);
     setConnectResult(null);
-
     try {
       const res = await fetch("/api/settings/connect", {
         method: "POST",
@@ -80,30 +109,29 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       setConnectResult(data);
-
       if (data.success && data.bot) {
         setConnectedBots(prev => [...prev.filter(b => b.id !== data.bot.id), {
-          id: data.bot.id,
-          name: data.bot.username,
-          platform: "telegram",
-          status: "active",
-          webhook_url: data.webhook_url,
+          id: data.bot.id, name: data.bot.username, platform: "telegram", status: "active", webhook_url: data.webhook_url,
         }]);
         setBotToken("");
       }
-      if (puterToken) setHasKeys(prev => ({ ...prev, puter: true }));
-      if (groqKey) setHasKeys(prev => ({ ...prev, groq: true }));
-      if (puterToken) setPuterToken("");
-      if (groqKey) setGroqKey("");
+      if (puterToken) { setHasKeys(p => ({ ...p, puter: true })); setPuterToken(""); }
+      if (groqKey) { setHasKeys(p => ({ ...p, groq: true })); setGroqKey(""); }
     } catch (err: any) {
       setConnectResult({ error: err.message });
     }
     setConnecting(false);
   };
 
+  const handleSyncProducts = () => {
+    setSyncing(true);
+    syncAllProducts();
+    setTimeout(() => setSyncing(false), 2000);
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div><h2 className="text-2xl font-bold">Settings</h2><p className="text-muted-foreground text-sm mt-1">Manage your account, AI, and bot connections</p></div>
+      <div><h2 className="text-2xl font-bold">Settings</h2><p className="text-muted-foreground text-sm mt-1">Set up your AI bot, connect Telegram, and manage your account</p></div>
 
       {/* Profile */}
       <Card className="border-border/50">
@@ -114,7 +142,6 @@ export default function SettingsPage() {
             <div>
               <div className="font-semibold">{user?.full_name || user?.username}</div>
               <div className="text-sm text-muted-foreground">{user?.email || "No email set"}</div>
-              {user?.company && <div className="text-xs text-muted-foreground">{user.company}</div>}
             </div>
           </div>
           <Separator className="bg-border/30" />
@@ -138,7 +165,46 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* AI Provider Keys */}
+      {/* Business Context (NEW) */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><BookOpen className="h-5 w-5" /> Business Context</CardTitle>
+          <CardDescription>Tell the AI about your business so it can answer better. This is like training your AI employee.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>About Your Business</Label>
+            <textarea
+              value={businessDescription}
+              onChange={(e) => setBusinessDescription(e.target.value)}
+              placeholder={"Example: We are ZyloVerse, a premium clothing brand from Dhaka. We sell hoodies, t-shirts, and panjabis. We do COD all over Bangladesh. Delivery takes 2-3 days inside Dhaka, 3-5 days outside. We have a 7-day exchange policy. Our target customers are young men aged 18-35."}
+              className="w-full min-h-[100px] rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm resize-y"
+              rows={4}
+            />
+            <p className="text-[11px] text-muted-foreground">The AI will use this to answer general questions about your business, policies, and delivery.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" /> Training Data <span className="text-[10px] text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <textarea
+              value={trainingData}
+              onChange={(e) => setTrainingData(e.target.value)}
+              placeholder={"Paste your previous chat conversations here so the AI learns your selling style.\n\nExample:\nCustomer: bhai hoodie price koto?\nYou: Bhai, Premium Hoodie 850 taka. Onek comfortable. Order diben?\nCustomer: COD ache?\nYou: Ji bhai, Cash on Delivery ache puro Bangladesh e. Dhaka te 60 taka, baire 120 taka."}
+              className="w-full min-h-[120px] rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm resize-y font-mono"
+              rows={5}
+            />
+            <p className="text-[11px] text-muted-foreground">The AI will learn your tone and style from these examples. Paste real chats for best results.</p>
+          </div>
+
+          <Button onClick={handleSaveBusinessContext} disabled={savingBiz}>
+            {savingBiz ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : savedBiz ? <><Check className="h-4 w-4 mr-2" /> Saved!</> : "Save Business Context"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* AI Provider */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Sparkles className="h-5 w-5" /> AI Provider</CardTitle>
@@ -150,13 +216,9 @@ export default function SettingsPage() {
               Puter API Token
               {hasKeys.puter && <span className="text-xs text-emerald-400">✅ Connected</span>}
             </Label>
-            <Input
-              type="password"
-              value={puterToken}
-              onChange={(e) => setPuterToken(e.target.value)}
+            <Input type="password" value={puterToken} onChange={(e) => setPuterToken(e.target.value)}
               placeholder={hasKeys.puter ? "••••••••••• (saved)" : "Paste your Puter API token"}
-              className="bg-zinc-950 border-zinc-800"
-            />
+              className="bg-zinc-950 border-zinc-800" />
             <p className="text-[11px] text-muted-foreground">Get from puter.com → Settings → API Token</p>
           </div>
 
@@ -170,15 +232,11 @@ export default function SettingsPage() {
               Groq API Key <span className="text-[10px] text-emerald-400 font-normal">(FREE)</span>
               {hasKeys.groq && <span className="text-xs text-emerald-400">✅ Connected</span>}
             </Label>
-            <Input
-              type="password"
-              value={groqKey}
-              onChange={(e) => setGroqKey(e.target.value)}
+            <Input type="password" value={groqKey} onChange={(e) => setGroqKey(e.target.value)}
               placeholder={hasKeys.groq ? "••••••••••• (saved)" : "gsk_..."}
-              className="bg-zinc-950 border-zinc-800"
-            />
+              className="bg-zinc-950 border-zinc-800" />
             <p className="text-[11px] text-muted-foreground">
-              Free, no credit card needed →{" "}
+              Free, no credit card →{" "}
               <a href="https://console.groq.com" target="_blank" rel="noopener" className="text-blue-400 hover:underline inline-flex items-center gap-1">
                 console.groq.com <ExternalLink className="h-3 w-3" />
               </a>
@@ -187,14 +245,13 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Telegram Bot Connection */}
+      {/* Telegram */}
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2"><Send className="h-5 w-5" /> Telegram Bot</CardTitle>
-          <CardDescription>Connect your own Telegram bot. Your customers will message this bot.</CardDescription>
+          <CardDescription>Connect your Telegram bot. Your customers will message this bot and AI will reply.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Connected bots */}
           {connectedBots.length > 0 && (
             <div className="space-y-2">
               {connectedBots.map((bot) => (
@@ -219,29 +276,18 @@ export default function SettingsPage() {
 
           <div className="space-y-1.5">
             <Label>Bot Token</Label>
-            <Input
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
+            <Input value={botToken} onChange={(e) => setBotToken(e.target.value)}
               placeholder="123456789:ABCdefGHIjklMNO..."
-              className="bg-zinc-950 border-zinc-800 font-mono text-xs"
-            />
+              className="bg-zinc-950 border-zinc-800 font-mono text-xs" />
             <p className="text-[11px] text-muted-foreground">
-              Create a bot via{" "}
+              Create via{" "}
               <a href="https://t.me/BotFather" target="_blank" rel="noopener" className="text-blue-400 hover:underline">@BotFather</a>
               {" "}→ /newbot → copy the token
             </p>
           </div>
 
-          <Button
-            onClick={handleConnectBot}
-            disabled={connecting || (!botToken && !puterToken && !groqKey)}
-            className="w-full"
-          >
-            {connecting ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Connecting...</>
-            ) : (
-              <><Send className="h-4 w-4 mr-2" /> Save & Connect</>
-            )}
+          <Button onClick={handleConnectBot} disabled={connecting || (!botToken && !puterToken && !groqKey)} className="w-full">
+            {connecting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Connecting...</> : <><Send className="h-4 w-4 mr-2" /> Save & Connect</>}
           </Button>
 
           {connectResult && (
@@ -252,18 +298,16 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Notifications */}
+      {/* Product Sync */}
       <Card className="border-border/50">
-        <CardHeader><CardTitle className="text-base flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          {[{ label: "New lead captured", desc: "Get notified when your AI agent captures a new lead" },
-            { label: "Weekly analytics report", desc: "Receive a summary of your agent performance" },
-            { label: "Agent errors", desc: "Alert when an agent encounters issues" }].map(n => (
-            <div key={n.label} className="flex items-center justify-between p-3 rounded-lg border border-zinc-800">
-              <div><div className="text-sm font-medium">{n.label}</div><div className="text-xs text-muted-foreground">{n.desc}</div></div>
-              <div className="h-6 w-11 rounded-full bg-white cursor-pointer relative"><div className="absolute top-0.5 left-[22px] h-5 w-5 rounded-full bg-zinc-900" /></div>
-            </div>
-          ))}
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><RefreshCw className="h-5 w-5" /> Product Sync</CardTitle>
+          <CardDescription>Sync your dashboard products to the bot. This happens automatically, but you can force a sync here.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={handleSyncProducts} disabled={syncing} className="w-full">
+            {syncing ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Syncing...</> : <><RefreshCw className="h-4 w-4 mr-2" /> Sync Products Now</>}
+          </Button>
         </CardContent>
       </Card>
 
