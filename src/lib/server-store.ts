@@ -1,8 +1,88 @@
 // ==================== Server-Side Store (Supabase) ====================
-// Used by API routes & webhooks — mirrors the client-side Puter store structure
+// Multi-tenant: every function is scoped by user_id
 
 import { supabase } from "./supabase";
 import type { Product } from "./types";
+
+// ==================== User Settings ====================
+
+export interface UserSettings {
+  user_id: string;
+  business_name?: string;
+  puter_api_token?: string;
+  groq_api_key?: string;
+  ai_personality?: string;
+}
+
+export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  const { data } = await supabase
+    .from("user_settings")
+    .select("*")
+    .eq("user_id", userId)
+    .single();
+  return data as UserSettings | null;
+}
+
+export async function saveUserSettings(userId: string, settings: Partial<UserSettings>) {
+  const { error } = await supabase.from("user_settings").upsert({
+    ...settings,
+    user_id: userId,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) console.error("[ServerStore] saveUserSettings error:", error.message);
+}
+
+// ==================== Bot Connections ====================
+
+export interface BotConnection {
+  user_id: string;
+  platform: string;
+  bot_id: string;
+  bot_token?: string;
+  bot_name?: string;
+  webhook_url?: string;
+  status?: string;
+}
+
+/** Look up which user owns a bot by its bot_id */
+export async function getUserByBotId(botId: string, platform = "telegram"): Promise<string | null> {
+  const { data } = await supabase
+    .from("bot_connections")
+    .select("user_id")
+    .eq("bot_id", botId)
+    .eq("platform", platform)
+    .eq("status", "active")
+    .single();
+  return data?.user_id || null;
+}
+
+/** Save a bot connection for a user */
+export async function saveBotConnection(conn: BotConnection) {
+  const { error } = await supabase.from("bot_connections").upsert(conn);
+  if (error) console.error("[ServerStore] saveBotConnection error:", error.message);
+}
+
+/** Get all bot connections for a user */
+export async function getBotConnections(userId: string, platform?: string): Promise<BotConnection[]> {
+  let query = supabase
+    .from("bot_connections")
+    .select("*")
+    .eq("user_id", userId);
+  if (platform) query = query.eq("platform", platform);
+  const { data } = await query;
+  return (data || []) as BotConnection[];
+}
+
+/** Get the bot token for a specific bot */
+export async function getBotToken(botId: string, platform = "telegram"): Promise<string | null> {
+  const { data } = await supabase
+    .from("bot_connections")
+    .select("bot_token")
+    .eq("bot_id", botId)
+    .eq("platform", platform)
+    .single();
+  return data?.bot_token || null;
+}
 
 // ==================== Products ====================
 
@@ -21,18 +101,6 @@ export async function getProductsByUser(userId: string): Promise<Product[]> {
   return (data || []) as Product[];
 }
 
-export async function getProductsByPageId(pageId: string): Promise<Product[]> {
-  // Look up user_id from page_tokens, then get their products
-  const { data: tokenRow } = await supabase
-    .from("page_tokens")
-    .select("user_id")
-    .eq("page_id", pageId)
-    .single();
-
-  if (!tokenRow) return [];
-  return getProductsByUser(tokenRow.user_id);
-}
-
 export async function saveProduct(userId: string, product: Partial<Product>) {
   const { error } = await supabase.from("products").upsert({
     ...product,
@@ -49,7 +117,6 @@ export async function getOrCreateConversation(
   visitorId: string,
   visitorName?: string
 ) {
-  // Check if an active conversation exists
   const { data: existing } = await supabase
     .from("conversations")
     .select("*")
@@ -62,16 +129,15 @@ export async function getOrCreateConversation(
 
   if (existing) return existing;
 
-  // Create new conversation
   const { data: newConv, error } = await supabase
     .from("conversations")
     .insert({
       user_id: userId,
       visitor_id: visitorId,
-      visitor_name: visitorName || "Facebook User",
+      visitor_name: visitorName || "User",
       messages: [],
       status: "active",
-      source: "messenger",
+      source: "telegram",
     })
     .select()
     .single();
@@ -88,7 +154,6 @@ export async function appendMessage(
   role: "user" | "assistant",
   content: string
 ) {
-  // Fetch current messages
   const { data: conv } = await supabase
     .from("conversations")
     .select("messages")
@@ -149,39 +214,7 @@ export async function createLead(lead: {
 }) {
   const { error } = await supabase.from("leads").insert({
     ...lead,
-    source: lead.source || "messenger",
+    source: lead.source || "telegram",
   });
   if (error) console.error("[ServerStore] createLead error:", error.message);
-}
-
-// ==================== Page Tokens ====================
-
-export async function getPageToken(pageId: string): Promise<string | null> {
-  const { data } = await supabase
-    .from("page_tokens")
-    .select("access_token")
-    .eq("page_id", pageId)
-    .single();
-
-  return data?.access_token || null;
-}
-
-export async function getUserIdByPage(pageId: string): Promise<string | null> {
-  const { data } = await supabase
-    .from("page_tokens")
-    .select("user_id")
-    .eq("page_id", pageId)
-    .single();
-
-  return data?.user_id || null;
-}
-
-export async function savePageToken(userId: string, pageId: string, accessToken: string, pageName?: string) {
-  const { error } = await supabase.from("page_tokens").upsert({
-    user_id: userId,
-    page_id: pageId,
-    access_token: accessToken,
-    page_name: pageName,
-  });
-  if (error) console.error("[ServerStore] savePageToken error:", error.message);
 }

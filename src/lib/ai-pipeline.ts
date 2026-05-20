@@ -1,11 +1,11 @@
-// ==================== AI Reply Pipeline ====================
-// Builds context from products + conversation history, generates AI replies
+// ==================== AI Reply Pipeline (Multi-Tenant) ====================
+// Each user has their OWN AI keys stored in Supabase user_settings.
+// The pipeline reads the user's keys and calls AI per-user.
 
 import type { Product } from "./types";
 
 /**
  * Build a system prompt from the seller's product catalog.
- * This is injected as context so the AI can answer product questions accurately.
  */
 export function buildProductContext(products: Product[]): string {
   if (products.length === 0) {
@@ -43,19 +43,27 @@ export function buildSystemPrompt(products: Product[], sellerName?: string): str
   const productCatalog = buildProductContext(products);
   const seller = sellerName || "the seller";
 
-  return `You are an AI sales assistant for ${seller}'s Facebook Page. You reply to customer messages on Messenger.
+  return `You are an AI sales assistant for ${seller}. You reply to customer messages.
+
+CRITICAL LANGUAGE RULE:
+- Detect the EXACT language the customer writes in.
+- If they write in English → reply in English only.
+- If they write in Bangla (বাংলা) → reply in Bangla only.
+- If they write in Banglish (Bangla written in English letters like "dam koto") → reply in Banglish only.
+- If they write in Hindi → reply in Hindi.
+- NEVER mix languages. NEVER default to Banglish if the customer writes in English.
 
 RULES:
-1. Be friendly, natural, and helpful — like a real Bangladeshi shop assistant.
-2. Reply in the SAME language the customer uses. If they write in Banglish, reply in Banglish. If Bangla, reply in Bangla. If English, reply in English.
-3. Keep replies SHORT (1-3 sentences max). Messenger is chat, not email.
-4. ALWAYS use the product database below for prices, stock, and details. NEVER guess or make up prices.
-5. If a product is out of stock, say so honestly and suggest alternatives if available.
-6. If the customer seems ready to order, ask for: Name, Phone Number, Address, and which product/variant they want.
-7. If you genuinely don't know the answer or the question is outside your product knowledge, say "Apnake ektu wait korte hobe, ami confirm kore janacchi" and the system will flag it for human review.
-8. Never reveal that you are an AI. Act as a helpful team member.
-9. For delivery questions, use the delivery info from the product database.
-10. If someone asks "last price" or tries to bargain, politely say the price is fixed unless the seller has set a discount.
+1. Be friendly, natural, and helpful — like a real shop assistant.
+2. Keep replies SHORT (1-3 sentences max). This is chat, not email.
+3. ALWAYS use the product database below for prices, stock, and details. NEVER guess or make up prices.
+4. If a product is out of stock, say so honestly and suggest alternatives if available.
+5. If the customer seems ready to order, ask for: Name, Phone Number, Address, and which product/variant they want.
+6. If you genuinely don't know the answer, say you'll check with the team. The system will flag it for human review.
+7. Never reveal that you are an AI. Act as a helpful team member.
+8. For delivery questions, use the delivery info from the product database.
+9. If someone asks "last price" or bargains, politely say the price is fixed unless a discount exists.
+10. If the customer greets you (hi, hello, hey), greet back warmly and ask how you can help.
 
 PRODUCT CATALOG:
 ${productCatalog}
@@ -65,7 +73,6 @@ Remember: You are selling. Be persuasive but honest. Your goal is to convert con
 
 /**
  * Detect the customer's buying intent from a message.
- * Returns a confidence score and intent level.
  */
 export function detectIntent(message: string): {
   level: "hot" | "warm" | "cold";
@@ -74,7 +81,6 @@ export function detectIntent(message: string): {
 } {
   const lower = message.toLowerCase();
 
-  // Hot signals — ready to buy
   const hotKeywords = [
     "order", "নিবো", "নিব", "nibo", "nib", "confirm", "কনফার্ম",
     "address", "ঠিকানা", "phone", "ফোন", "payment", "পেমেন্ট",
@@ -82,14 +88,12 @@ export function detectIntent(message: string): {
     "কিনবো", "kinbo", "buy", "take", "চাই", "chai", "diben", "দিবেন",
   ];
 
-  // Warm signals — interested
   const warmKeywords = [
     "price", "দাম", "dam", "koto", "কত", "কতো", "size", "সাইজ",
     "color", "কালার", "রং", "delivery", "ডেলিভারি", "stock", "স্টক",
     "available", "আছে", "ase", "ache",
   ];
 
-  // Human escalation signals
   const humanKeywords = [
     "manager", "owner", "complaint", "refund", "return", "রিটার্ন",
     "problem", "সমস্যা", "broken", "ভাঙা", "wrong", "ভুল",
@@ -99,160 +103,156 @@ export function detectIntent(message: string): {
   const warmMatch = warmKeywords.some((k) => lower.includes(k));
   const humanMatch = humanKeywords.some((k) => lower.includes(k));
 
-  if (hotMatch) {
-    return { level: "hot", confidence: 0.85 + Math.random() * 0.1, shouldFlagHuman: false };
-  }
-  if (humanMatch) {
-    return { level: "warm", confidence: 0.5, shouldFlagHuman: true };
-  }
-  if (warmMatch) {
-    return { level: "warm", confidence: 0.6 + Math.random() * 0.2, shouldFlagHuman: false };
-  }
+  if (hotMatch) return { level: "hot", confidence: 0.85 + Math.random() * 0.1, shouldFlagHuman: false };
+  if (humanMatch) return { level: "warm", confidence: 0.5, shouldFlagHuman: true };
+  if (warmMatch) return { level: "warm", confidence: 0.6 + Math.random() * 0.2, shouldFlagHuman: false };
   return { level: "cold", confidence: 0.3 + Math.random() * 0.2, shouldFlagHuman: false };
 }
 
+// ==================== Per-User AI Keys ====================
+
+export interface AIKeys {
+  puterToken?: string;
+  groqKey?: string;
+}
+
 /**
- * Call the AI model via Puter.js REST API (server-side).
- * Uses the same free AI that the client-side Puter SDK provides.
+ * Call AI via Puter REST API using the USER's token.
  */
-export async function generateAIReply(
-  systemPrompt: string,
-  conversationHistory: { role: "user" | "assistant"; content: string }[]
-): Promise<string> {
-  const puterToken = process.env.PUTER_API_TOKEN;
-
-  if (!puterToken) {
-    console.warn("[AI Pipeline] PUTER_API_TOKEN not set — using fallback reply");
-    return "Assalamu Alaikum! Apnar message peyechi. Ektu wait korun, ami details janacchi. 🙏";
-  }
-
+async function callPuterAI(messages: any[], token: string): Promise<string | null> {
   try {
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...conversationHistory.slice(-10),
-    ];
-
     const res = await fetch("https://api.puter.com/drivers/call", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${puterToken}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         interface: "puter-chat-completion",
         driver: "openai-completion",
         method: "complete",
-        args: {
-          messages,
-          model: "gpt-4o-mini",
-          max_tokens: 200,
-          temperature: 0.7,
-        },
+        args: { messages, model: "gpt-4o-mini", max_tokens: 250, temperature: 0.7 },
       }),
     });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[AI Pipeline] Puter API error:", errText);
-      return "Apnake ektu wait korte hobe, ami confirm kore janacchi. 🙏";
-    }
-
+    if (!res.ok) { console.error("[Puter AI]", await res.text()); return null; }
     const data = await res.json();
-    const reply =
-      data?.result?.message?.content?.trim() ||
-      data?.message?.content?.trim() ||
-      data?.result?.content?.trim() ||
-      "";
-
-    if (reply) return reply;
-
-    console.warn("[AI Pipeline] Empty reply from Puter, using fallback");
-    return "Ektu wait korun please. 🙏";
-  } catch (err) {
-    console.error("[AI Pipeline] Error:", err);
-    return "Apnake ektu wait korte hobe, ami confirm kore janacchi. 🙏";
-  }
+    return data?.result?.message?.content?.trim() || data?.message?.content?.trim() || data?.result?.content?.trim() || null;
+  } catch (e) { console.error("[Puter AI] Error:", e); return null; }
 }
 
 /**
- * Call the AI model with an image (vision mode).
- * GPT-4o-mini supports vision natively — we send the image URL
- * alongside text so the AI can analyze product images sent by customers.
+ * Call AI via Groq using the USER's key.
+ */
+async function callGroqAI(messages: any[], key: string, model?: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: model || "llama-3.3-70b-versatile",
+        messages,
+        max_tokens: 250,
+        temperature: 0.7,
+      }),
+    });
+    if (!res.ok) { console.error("[Groq AI]", await res.text()); return null; }
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content?.trim() || null;
+  } catch (e) { console.error("[Groq AI] Error:", e); return null; }
+}
+
+/**
+ * Generate an AI reply using the user's own API keys.
+ * Tries: User's Puter → User's Groq → .env fallback → smart template
+ */
+export async function generateAIReply(
+  systemPrompt: string,
+  conversationHistory: { role: "user" | "assistant"; content: string }[],
+  userKeys?: AIKeys
+): Promise<string> {
+  const messages = [
+    { role: "system", content: systemPrompt },
+    ...conversationHistory.slice(-10),
+  ];
+
+  // 1. Try user's Puter token
+  if (userKeys?.puterToken) {
+    const reply = await callPuterAI(messages, userKeys.puterToken);
+    if (reply) return reply;
+  }
+
+  // 2. Try user's Groq key
+  if (userKeys?.groqKey) {
+    const reply = await callGroqAI(messages, userKeys.groqKey);
+    if (reply) return reply;
+  }
+
+  // 3. Try global .env fallback (platform-level keys)
+  if (process.env.PUTER_API_TOKEN) {
+    const reply = await callPuterAI(messages, process.env.PUTER_API_TOKEN);
+    if (reply) return reply;
+  }
+  if (process.env.GROQ_API_KEY) {
+    const reply = await callGroqAI(messages, process.env.GROQ_API_KEY);
+    if (reply) return reply;
+  }
+
+  // 4. Smart fallback
+  const lastMsg = conversationHistory[conversationHistory.length - 1]?.content || "";
+  return getSmartFallback(lastMsg);
+}
+
+/**
+ * Generate an AI reply with image understanding (vision).
  */
 export async function generateVisionReply(
   systemPrompt: string,
   imageUrl: string,
   caption?: string,
-  conversationHistory?: { role: "user" | "assistant"; content: string }[]
+  conversationHistory?: { role: "user" | "assistant"; content: string }[],
+  userKeys?: AIKeys
 ): Promise<string> {
-  const puterToken = process.env.PUTER_API_TOKEN;
+  const userContent: any[] = [
+    { type: "image_url", image_url: { url: imageUrl } },
+  ];
+  userContent.unshift({
+    type: "text",
+    text: caption || "Customer sent this product image. Analyze it and check if any product in our catalog matches. Describe what you see and suggest the closest matching product with its price. If no match, say so politely.",
+  });
 
-  if (!puterToken) {
-    console.warn("[AI Pipeline] PUTER_API_TOKEN not set — using fallback for image");
-    return "Apnar image peyechi! Ektu wait korun, ami check kore janacchi. 🙏";
-  }
+  const messages: any[] = [
+    { role: "system", content: systemPrompt },
+    ...(conversationHistory || []).slice(-6),
+    { role: "user", content: userContent },
+  ];
 
-  try {
-    // Build the user message with image + optional caption
-    const userContent: any[] = [
-      {
-        type: "image_url",
-        image_url: { url: imageUrl },
-      },
-    ];
-
-    if (caption) {
-      userContent.unshift({ type: "text", text: caption });
-    } else {
-      userContent.unshift({
-        type: "text",
-        text: "Customer sent this product image. Analyze it and check if any product in our catalog matches. Describe what you see and suggest the closest matching product with its price. If no match, say so politely.",
-      });
-    }
-
-    const messages: any[] = [
-      { role: "system", content: systemPrompt },
-      ...(conversationHistory || []).slice(-6),
-      { role: "user", content: userContent },
-    ];
-
-    const res = await fetch("https://api.puter.com/drivers/call", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${puterToken}`,
-      },
-      body: JSON.stringify({
-        interface: "puter-chat-completion",
-        driver: "openai-completion",
-        method: "complete",
-        args: {
-          messages,
-          model: "gpt-4o-mini",
-          max_tokens: 300,
-          temperature: 0.7,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[AI Pipeline] Vision error:", errText);
-      return "Apnar image peyechi! Ektu wait korun, ami check korchi. 🙏";
-    }
-
-    const data = await res.json();
-    const reply =
-      data?.result?.message?.content?.trim() ||
-      data?.message?.content?.trim() ||
-      data?.result?.content?.trim() ||
-      "";
-
+  // Try user's keys first, then .env
+  if (userKeys?.puterToken) {
+    const reply = await callPuterAI(messages, userKeys.puterToken);
     if (reply) return reply;
-    return "Image ta dekhchi, ektu wait korun. 🙏";
-  } catch (err) {
-    console.error("[AI Pipeline] Vision error:", err);
-    return "Apnar image peyechi! Ektu wait korun, ami check korchi. 🙏";
   }
+  if (userKeys?.groqKey) {
+    const reply = await callGroqAI(messages, userKeys.groqKey, "llama-3.2-90b-vision-preview");
+    if (reply) return reply;
+  }
+  if (process.env.PUTER_API_TOKEN) {
+    const reply = await callPuterAI(messages, process.env.PUTER_API_TOKEN);
+    if (reply) return reply;
+  }
+  if (process.env.GROQ_API_KEY) {
+    const reply = await callGroqAI(messages, process.env.GROQ_API_KEY, "llama-3.2-90b-vision-preview");
+    if (reply) return reply;
+  }
+
+  return "I received your image! Let me check our catalog. One moment please... 📸";
 }
 
+/**
+ * Smart fallback that matches the customer's language.
+ */
+function getSmartFallback(lastMessage: string): string {
+  const hasBangla = /[\u0980-\u09FF]/.test(lastMessage);
+  const banglishWords = ["bhai", "vai", "dam", "koto", "ase", "nai", "diben", "bolun", "achen", "nibo", "chai"];
+  const isBanglish = banglishWords.some(w => lastMessage.toLowerCase().includes(w));
+
+  if (hasBangla) return "আপনার মেসেজ পেয়েছি! আমাদের টিমকে জানাচ্ছি, একটু অপেক্ষা করুন। 🙏";
+  if (isBanglish) return "Apnar message peyechi! Ami check kore janacchi, ektu wait korun. 🙏";
+  return "Thank you for your message! Let me check and get back to you shortly. 🙏";
+}
