@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { setCurrentUserId, syncAllProducts } from "./store";
 
 // ==================== Types ====================
 export interface NuronUser {
@@ -64,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (stored) {
               const profile = typeof stored === "string" ? JSON.parse(stored) : stored;
               setUser({ ...profile, uuid: puterUser.uuid, username: puterUser.username });
+              setCurrentUserId(puterUser.uuid);
+              setTimeout(() => syncAllProducts(), 1000);
               setNeedsOnboarding(false);
             } else {
               // Signed in but no profile yet → needs onboarding
@@ -75,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 company: "",
                 created_at: new Date().toISOString(),
               });
+              setCurrentUserId(puterUser.uuid);
               setNeedsOnboarding(true);
             }
           } catch {
@@ -87,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               company: "",
               created_at: new Date().toISOString(),
             });
+            setCurrentUserId(puterUser.uuid);
             setNeedsOnboarding(true);
           }
         }
@@ -111,6 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (stored) {
           const profile = typeof stored === "string" ? JSON.parse(stored) : stored;
           setUser({ ...profile, uuid: puterUser.uuid, username: puterUser.username });
+          setCurrentUserId(puterUser.uuid);
+          setTimeout(() => syncAllProducts(), 1000);
           setNeedsOnboarding(false);
         } else {
           setUser({
@@ -121,6 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             company: "",
             created_at: new Date().toISOString(),
           });
+          setCurrentUserId(puterUser.uuid);
           setNeedsOnboarding(true);
         }
       } catch {
@@ -132,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           company: "",
           created_at: new Date().toISOString(),
         });
+        setCurrentUserId(puterUser.uuid);
         setNeedsOnboarding(true);
       }
     } catch (err: any) {
@@ -187,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await puter.auth.signOut();
       setUser(null);
+      setCurrentUserId(null);
       setNeedsOnboarding(false);
     } catch (err) {
       console.error("Sign out error:", err);

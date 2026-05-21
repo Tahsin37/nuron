@@ -2,28 +2,46 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getProducts, getLeads, getConversations, getAnalytics } from "@/lib/store";
+import { getProducts } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 import { Users, MessageSquare, ArrowUpRight, Plus, Database, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import type { Product, Lead, Conversation } from "@/lib/types";
+import type { Product } from "@/lib/types";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [leadCount, setLeadCount] = useState(0);
+  const [hotLeadCount, setHotLeadCount] = useState(0);
+  const [convCount, setConvCount] = useState(0);
+  const [needsHumanCount, setNeedsHumanCount] = useState(0);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true); setProducts(getProducts()); setLeads(getLeads()); setConversations(getConversations()); }, []);
+  useEffect(() => {
+    setMounted(true);
+    setProducts(getProducts());
+    if (!user?.uuid) return;
+    // Fetch real stats from Supabase
+    fetch(`/api/leads?user_id=${user.uuid}`).then(r => r.json()).then(d => {
+      const leads = d.leads || [];
+      setLeadCount(leads.length);
+      setHotLeadCount(leads.filter((l: any) => l.buying_intent === "hot").length);
+    }).catch(() => {});
+    fetch(`/api/conversations?user_id=${user.uuid}`).then(r => r.json()).then(d => {
+      const convs = d.conversations || [];
+      setConvCount(convs.length);
+      setNeedsHumanCount(convs.filter((c: any) => c.status === "needs_human").length);
+    }).catch(() => {});
+  }, [user?.uuid]);
 
   if (!mounted) return null;
 
-  const analytics = getAnalytics();
   const activeProducts = products.filter(p => p.status === "active").length;
   const stats = [
     { label: "Products in Brain", value: activeProducts.toString(), delta: `${products.length} total`, icon: Database, color: "text-blue-400" },
-    { label: "Inbox Messages", value: conversations.length.toString(), delta: conversations.length > 0 ? `${analytics.ai_handled_count} AI Handled` : "0 Automated", icon: MessageSquare, color: "text-emerald-400" },
-    { label: "Hot Leads", value: leads.filter(l => l.buying_intent === "hot").length.toString(), delta: `${leads.length} Total Captured`, icon: Users, color: "text-amber-400" },
-    { label: "Needs Attention", value: analytics.fallback_count.toString(), delta: "Human intervention needed", icon: AlertCircle, color: "text-rose-400" },
+    { label: "Conversations", value: convCount.toString(), delta: convCount > 0 ? "From all channels" : "No messages yet", icon: MessageSquare, color: "text-emerald-400" },
+    { label: "Hot Leads", value: hotLeadCount.toString(), delta: `${leadCount} Total Captured`, icon: Users, color: "text-amber-400" },
+    { label: "Needs Attention", value: needsHumanCount.toString(), delta: "Human intervention needed", icon: AlertCircle, color: "text-rose-400" },
   ];
 
   return (
@@ -93,42 +111,40 @@ export default function DashboardPage() {
             <Link href="/dashboard/leads"><Button size="sm" variant="outline">View All</Button></Link>
           </CardHeader>
           <CardContent>
-            {leads.length === 0 ? (
+            {leadCount === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No leads captured yet. Deploy an agent to start!</p>
+                <p>No leads captured yet</p>
+                <p className="text-xs mt-1">Leads appear when customers show buying intent</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {leads.slice(0, 5).map((lead) => (
-                  <div key={lead.id} className="flex items-center justify-between p-3 rounded-lg border border-border/30">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold">{lead.name[0]}</div>
-                      <div>
-                        <div className="font-medium text-sm">{lead.name}</div>
-                        <div className="text-xs text-muted-foreground">{lead.email}</div>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">{lead.product_interest || "—"}</div>
-                  </div>
-                ))}
+              <div className="text-center py-6">
+                <div className="text-4xl font-bold">{leadCount}</div>
+                <p className="text-sm text-muted-foreground mt-1">leads captured • {hotLeadCount} hot</p>
+                <Link href="/dashboard/leads"><Button size="sm" variant="outline" className="mt-3">View All Leads <ArrowUpRight className="h-3 w-3 ml-1" /></Button></Link>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Activity Chart */}
+      {/* Activity Summary */}
       <Card className="border-border/50">
-        <CardHeader><CardTitle className="text-base">Conversation Activity (Last 7 Days)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Activity Summary</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex gap-2 items-end h-40">
-            {analytics.conversations_over_time.map((d, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full rounded-t-sm bg-gradient-to-t from-zinc-700 to-zinc-500 transition-all hover:from-white/20 hover:to-white/10" style={{ height: `${Math.max(10, (d.count / 30) * 100)}%` }} />
-                <span className="text-[10px] text-muted-foreground">{d.date.slice(5)}</span>
-              </div>
-            ))}
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="p-4 rounded-lg bg-zinc-900/50">
+              <div className="text-2xl font-bold text-blue-400">{products.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Products</p>
+            </div>
+            <div className="p-4 rounded-lg bg-zinc-900/50">
+              <div className="text-2xl font-bold text-emerald-400">{convCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">Conversations</p>
+            </div>
+            <div className="p-4 rounded-lg bg-zinc-900/50">
+              <div className="text-2xl font-bold text-amber-400">{leadCount}</div>
+              <p className="text-xs text-muted-foreground mt-1">Leads</p>
+            </div>
           </div>
         </CardContent>
       </Card>

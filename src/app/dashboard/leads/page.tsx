@@ -3,16 +3,27 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getLeads } from "@/lib/store";
-import { Users, Search, Download, Mail, Phone } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { Users, Search, Download, Mail, Phone, Loader2 } from "lucide-react";
 import type { Lead } from "@/lib/types";
 
 export default function LeadsPage() {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [search, setSearch] = useState("");
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); setLeads(getLeads()); }, []);
-  if (!mounted) return null;
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uuid) return;
+    setLoading(true);
+    fetch(`/api/leads?user_id=${user.uuid}`)
+      .then(r => r.json())
+      .then(data => setLeads(data.leads || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user?.uuid]);
+
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
 
   const filtered = leads.filter(l => l.name.toLowerCase().includes(search.toLowerCase()) || (l.email && l.email.toLowerCase().includes(search.toLowerCase())) || (l.phone && l.phone.includes(search)));
 

@@ -271,19 +271,20 @@ export function getAnalytics(): AnalyticsData {
 
 // ==================== Products ====================
 
+/** Store current user ID for Supabase sync (set from auth context) */
+let currentUserId: string | null = null;
+export function setCurrentUserId(id: string | null) {
+  currentUserId = id;
+}
+
 /** Sync a product to Supabase (fire-and-forget, never blocks UI) */
 function syncProductToSupabase(product: Product, action: "upsert" | "delete") {
-  if (typeof window === "undefined") return;
-  try {
-    const puter = (window as any).puter;
-    const userId = puter?.auth?.isSignedIn?.() ? puter.authUser?.uuid : null;
-    if (!userId) return;
-    fetch("/api/products/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, product, action }),
-    }).catch(() => {}); // Silent — Supabase sync is best-effort
-  } catch { /* ignore */ }
+  if (typeof window === "undefined" || !currentUserId) return;
+  fetch("/api/products/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: currentUserId, product, action }),
+  }).catch((err) => console.warn("[Sync]", err));
 }
 
 export function getProducts(): Product[] {
@@ -332,20 +333,18 @@ export function deleteProduct(id: string): boolean {
   return true;
 }
 
-/** Bulk sync all products to Supabase (call after initial load or manual sync) */
+/** Bulk sync all products to Supabase (throttled — max once per 30s) */
+let lastBulkSync = 0;
 export function syncAllProducts() {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !currentUserId) return;
+  const now = Date.now();
+  if (now - lastBulkSync < 30000) return; // Throttle: max once per 30s
+  lastBulkSync = now;
   const products = getProducts();
   if (products.length === 0) return;
-  try {
-    const puter = (window as any).puter;
-    const userId = puter?.auth?.isSignedIn?.() ? puter.authUser?.uuid : null;
-    if (!userId) return;
-    fetch("/api/products/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, product: products, action: "bulk" }),
-    }).catch(() => {});
-  } catch { /* ignore */ }
+  fetch("/api/products/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: currentUserId, product: products, action: "bulk" }),
+  }).catch((err) => console.warn("[Sync]", err));
 }
-

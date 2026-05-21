@@ -8,7 +8,8 @@ import type { Product } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   const results: Record<string, any> = {};
-  const userId = request.nextUrl.searchParams.get("user_id") || "test_user_mvp";
+  const userId = request.nextUrl.searchParams.get("user_id");
+  if (!userId) return NextResponse.json({ error: "user_id required" }, { status: 400 });
 
   try {
     // Test 1: Save a test product

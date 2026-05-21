@@ -108,27 +108,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className={cn("flex-1 transition-all duration-300 flex flex-col min-h-screen", collapsed ? "md:ml-16" : "md:ml-64")}>
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/80 backdrop-blur-xl px-6">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border bg-background/80 backdrop-blur-xl px-4 sm:px-6">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 rounded-lg hover:bg-accent text-muted-foreground">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-semibold truncate">{activeItem?.label || "Dashboard"}</h1>
+            <h1 className="text-base sm:text-lg font-semibold truncate">{activeItem?.label || "Dashboard"}</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="relative hidden md:block">
+          <div className="flex items-center gap-2">
+            <div className="relative hidden lg:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input type="text" placeholder="Search..." className="h-9 w-64 rounded-lg border border-border bg-card pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20" />
+              <input type="text" placeholder="Search..." className="h-9 w-56 rounded-lg border border-border bg-card pl-10 pr-4 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/20" />
             </div>
-            <button className="relative p-2 rounded-lg hover:bg-accent text-muted-foreground">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-emerald-400" />
-            </button>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="p-6">{children}</main>
+        <main className="p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

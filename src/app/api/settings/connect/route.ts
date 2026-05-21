@@ -8,10 +8,22 @@ import { saveBotConnection, getBotConnections, saveUserSettings, getUserSettings
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { user_id, bot_token, puter_api_token, groq_api_key, business_name, business_description, training_data } = body;
+    const { user_id, bot_token, puter_api_token, groq_api_key, business_name, business_description, training_data, disconnect_bot_id } = body;
 
     if (!user_id) {
       return NextResponse.json({ error: "user_id is required" }, { status: 400 });
+    }
+
+    // ─── Disconnect a bot ───
+    if (disconnect_bot_id) {
+      const { supabase } = await import("@/lib/supabase");
+      // Get the bot's token to remove webhook
+      const { data: conn } = await supabase.from("bot_connections").select("bot_token").eq("bot_id", disconnect_bot_id).eq("user_id", user_id).single();
+      if (conn?.bot_token) {
+        await fetch(`https://api.telegram.org/bot${conn.bot_token}/deleteWebhook`).catch(() => {});
+      }
+      await supabase.from("bot_connections").delete().eq("bot_id", disconnect_bot_id).eq("user_id", user_id);
+      return NextResponse.json({ success: true, message: "Bot disconnected" });
     }
 
     // ─── Save AI keys + business info ───
