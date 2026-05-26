@@ -50,9 +50,17 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
     setCountdown(120);
 
     try {
-      const res = await fetch(`${workerUrl}/api/qr?tenant_id=${user.uuid}`, {
-        headers: { "Accept": "application/json" },
+      // POST to the worker's generate-qr endpoint
+      const res = await fetch(`${workerUrl}/api/whatsapp/generate-qr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: user.uuid }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Worker returned ${res.status}`);
+      }
+
       const data = await res.json();
 
       if (data.status === "connected") {
@@ -63,6 +71,11 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
 
       if (data.qr) {
         setQrImage(data.qr);
+        setStatus("waiting_for_scan");
+        startPolling(user.uuid);
+        startCountdown();
+      } else if (data.status === "initializing") {
+        // QR not ready yet — start polling for it
         setStatus("waiting_for_scan");
         startPolling(user.uuid);
         startCountdown();
@@ -86,7 +99,8 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
         return;
       }
       try {
-        const res = await fetch(`${workerUrl}/api/qr?tenant_id=${tenantId}`);
+        const res = await fetch(`${workerUrl}/api/whatsapp/status?tenant_id=${tenantId}`);
+        if (!res.ok) return; // ignore non-200, keep polling
         const data = await res.json();
         if (data.status === "connected") {
           cleanup();
