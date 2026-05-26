@@ -10,13 +10,11 @@ import { cn } from "@/lib/utils";
 type ConnectionStatus = "idle" | "loading" | "waiting_for_scan" | "connected" | "error";
 
 interface ConnectWhatsAppCardProps {
-  /** The Railway worker base URL. Falls back to env if not provided. */
-  workerUrl?: string;
   /** Callback when connection succeeds */
   onConnected?: () => void;
 }
 
-export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: ConnectWhatsAppCardProps) {
+export function ConnectWhatsAppCard({ onConnected }: ConnectWhatsAppCardProps) {
   const { user } = useAuth();
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [qrImage, setQrImage] = useState<string | null>(null);
@@ -24,8 +22,6 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
   const [countdown, setCountdown] = useState(120);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
-
-  const workerUrl = propUrl || process.env.NEXT_PUBLIC_RAILWAY_URL || "";
 
   const cleanup = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -37,9 +33,9 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
   useEffect(() => () => cleanup(), [cleanup]);
 
   const startQR = async () => {
-    if (!user?.uuid || !workerUrl) {
+    if (!user?.uuid) {
       setStatus("error");
-      setErrorMsg(workerUrl ? "Not authenticated." : "Worker URL not configured. Set NEXT_PUBLIC_RAILWAY_URL in your .env");
+      setErrorMsg("Not authenticated.");
       return;
     }
 
@@ -50,18 +46,18 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
     setCountdown(120);
 
     try {
-      // POST to the worker's generate-qr endpoint
-      const res = await fetch(`${workerUrl}/api/whatsapp/generate-qr`, {
+      // Call our own proxy — no CORS issues
+      const res = await fetch("/api/whatsapp/qr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: user.uuid }),
+        body: JSON.stringify({ action: "generate", tenant_id: user.uuid }),
       });
 
-      if (!res.ok) {
-        throw new Error(`Worker returned ${res.status}`);
-      }
-
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || `Server returned ${res.status}`);
+      }
 
       if (data.status === "connected") {
         setStatus("connected");
@@ -74,13 +70,13 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
         setStatus("waiting_for_scan");
         startPolling(user.uuid);
         startCountdown();
-      } else if (data.status === "initializing") {
+      } else if (data.status === "initializing" || data.status === "waiting_scan") {
         // QR not ready yet — start polling for it
         setStatus("waiting_for_scan");
         startPolling(user.uuid);
         startCountdown();
       } else {
-        throw new Error(data.error || "No QR code received");
+        throw new Error(data.error || "No QR code received. Is the worker running?");
       }
     } catch (err: any) {
       setStatus("error");
@@ -99,8 +95,13 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
         return;
       }
       try {
-        const res = await fetch(`${workerUrl}/api/whatsapp/status?tenant_id=${tenantId}`);
-        if (!res.ok) return; // ignore non-200, keep polling
+        // Poll via our own proxy
+        const res = await fetch("/api/whatsapp/qr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "status", tenant_id: tenantId }),
+        });
+        if (!res.ok) return;
         const data = await res.json();
         if (data.status === "connected") {
           cleanup();
@@ -114,7 +115,7 @@ export function ConnectWhatsAppCard({ workerUrl: propUrl, onConnected }: Connect
           }).catch(() => {});
           onConnected?.();
         } else if (data.qr && data.qr !== qrImage) {
-          setQrImage(data.qr); // QR refreshed
+          setQrImage(data.qr); // QR arrived or refreshed
         }
       } catch {
         // ignore, keep polling
