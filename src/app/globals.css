@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0a0a0b;
-  --color-foreground: #fafafa;
-  --color-card: #111113;
-  --color-card-foreground: #fafafa;
-  --color-popover: #111113;
-  --color-popover-foreground: #fafafa;
-  --color-primary: #fafafa;
-  --color-primary-foreground: #0a0a0b;
-  --color-secondary: #1c1c1f;
-  --color-secondary-foreground: #fafafa;
-  --color-muted: #1c1c1f;
-  --color-muted-foreground: #71717a;
-  --color-accent: #1c1c1f;
-  --color-accent-foreground: #fafafa;
+  --color-background: #000000;
+  --color-foreground: #ffffff;
+  --color-card: #0a0a0a;
+  --color-card-foreground: #ffffff;
+  --color-popover: #0a0a0a;
+  --color-popover-foreground: #ffffff;
+  --color-primary: #ffffff;
+  --color-primary-foreground: #000000;
+  --color-secondary: #111111;
+  --color-secondary-foreground: #ffffff;
+  --color-muted: #111111;
+  --color-muted-foreground: #888888;
+  --color-accent: #111111;
+  --color-accent-foreground: #ffffff;
   --color-destructive: #ef4444;
-  --color-destructive-foreground: #fafafa;
-  --color-border: #27272a;
-  --color-input: #27272a;
-  --color-ring: #3f3f46;
-  --radius: 0.75rem;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #222222;
+  --color-input: #222222;
+  --color-ring: #444444;
+  --radius: 0.5rem;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -35,13 +35,33 @@
   to { height: 0; }
 }
 
+/* Toast animations */
+.animate-in {
+  animation-duration: 300ms;
+  animation-fill-mode: both;
+}
+.slide-in-from-right-5 {
+  animation-name: slide-in-right;
+}
+.fade-in {
+  animation-name: fade-in;
+}
+@keyframes slide-in-right {
+  from { transform: translateX(1.25rem); }
+  to { transform: translateX(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
   }
 
   html {
-    background-color: #0a0a0b;
+    background-color: #000000;
     color-scheme: dark;
   }
 
@@ -51,6 +71,7 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   /* Suppress Puter.js auth iframe white flash */
@@ -156,7 +177,7 @@
 
 /* Gradient text utility */
 .gradient-text {
-  background: linear-gradient(135deg, #fafafa 0%, #a1a1aa 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;

@@ -1,0 +1,19 @@
+{
+  "name": "nuron-worker",
+  "version": "1.1.0",
+  "description": "Nuron AI Worker — WhatsApp & Messenger bridge + cron services for Railway",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5",
+    "whatsapp-web.js": "^1.26.0",
+    "qrcode": "^1.5.4",
+    "node-cron": "^3.0.3",
+    "csv-parse": "^5.6.0",
+    "@supabase/supabase-js": "^2.105.4"
+  }
+}

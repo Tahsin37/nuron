@@ -1,12 +1,10 @@
 "use client";
 import React from "react";
-import { motion, type Variants } from "framer-motion";
-import { Card } from "@/components/ui/card";
+import { motion } from "framer-motion";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Bot, MessageSquare, BarChart3, Brain, Globe, FileText, Users, Zap, ArrowUpRight } from "lucide-react";
-
-const fadeUp: Variants = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } } };
+import { fadeUp, staggerContainer } from "@/lib/animations";
 
 const features = [
   { icon: MessageSquare, title: "Facebook & Messenger", desc: "Automate your Facebook Page inbox. Instantly reply to customers 24/7." },
@@ -26,91 +24,88 @@ const metrics = [
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="relative py-24 lg:py-32 px-6">
-      <div className="mx-auto max-w-6xl space-y-20">
+    <section id="features" className="relative py-24 lg:py-32 px-6 bg-black border-t border-white/5">
+      <div className="mx-auto max-w-6xl space-y-32">
         {/* Features Grid */}
-        <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }} className="mx-auto max-w-3xl text-center">
-          <Badge variant="outline" className="mb-4 inline-flex items-center gap-2 rounded-full border-border/50 bg-background/55 px-4 py-1.5 text-xs uppercase tracking-[0.2em] text-foreground/70 backdrop-blur">
-            <Zap className="h-3.5 w-3.5" /> Platform Features
-          </Badge>
-          <h2 className="text-4xl font-semibold tracking-tight md:text-5xl">Everything you need to sell on Messenger</h2>
-          <p className="mt-5 text-base leading-relaxed text-foreground/70 md:text-lg">From building a product database to automating your Facebook inbox — one platform to scale your sales.</p>
-        </motion.div>
-
-        <motion.div initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} transition={{ staggerChildren: 0.08 }} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <motion.div key={f.title} variants={fadeUp}>
-              <Card className="group relative overflow-hidden rounded-2xl border border-border/50 bg-background/45 p-8 backdrop-blur-2xl transition-all duration-300 hover:-translate-y-1 hover:border-border h-full">
-                <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.03] via-transparent to-transparent" />
-                <div className="relative z-10 space-y-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border/40 bg-background/70 text-foreground/80">
-                    <f.icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="text-lg font-semibold">{f.title}</h3>
-                  <p className="text-sm leading-relaxed text-foreground/70">{f.desc}</p>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Metrics Section — adapted from GlassmorphismMinimalMetricsBlock */}
-        <div className="space-y-12">
+        <div className="space-y-16">
           <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }} className="mx-auto max-w-3xl text-center">
-            <Badge variant="outline" className="mb-4 inline-flex items-center gap-2 rounded-full border-border/50 bg-background/55 px-4 py-1.5 text-xs uppercase tracking-[0.2em] text-foreground/70 backdrop-blur">
-              <Zap className="h-3.5 w-3.5" /> Realtime Insights
+            <Badge variant="outline" className="mb-6 inline-flex items-center gap-2 rounded-full border-white/10 bg-white/5 px-4 py-1.5 text-[10px] uppercase tracking-widest text-zinc-300 backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+              <Zap className="h-3 w-3" /> Platform Features
             </Badge>
-            <h2 className="text-4xl font-semibold tracking-tight md:text-5xl">Real results from real sellers</h2>
-            <p className="mt-5 text-base leading-relaxed text-foreground/70 md:text-lg">See how social commerce businesses are saving time and increasing conversions.</p>
+            <h2 className="text-4xl font-semibold tracking-tighter md:text-5xl text-white">Everything you need to sell on Messenger</h2>
+            <p className="mt-5 text-base leading-relaxed text-zinc-400 md:text-lg">From building a product database to automating your Facebook inbox — one platform to scale your sales.</p>
           </motion.div>
 
-          <motion.div initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} transition={{ staggerChildren: 0.08 }} className="grid gap-4 md:grid-cols-2">
-            {metrics.map((m) => (
-              <motion.div key={m.label} variants={fadeUp}>
-                <Card className="group relative overflow-hidden rounded-3xl border border-border/50 bg-background/45 p-8 backdrop-blur-2xl transition-transform duration-300 hover:-translate-y-1">
-                  <div className="absolute inset-0 bg-gradient-to-br from-foreground/[0.04] via-transparent to-transparent" />
-                  <div className="relative z-10 space-y-5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium uppercase tracking-[0.25em] text-foreground/60">{m.label}</span>
-                      <ArrowUpRight className="h-4 w-4 text-foreground/40 transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
-                    </div>
-                    <div className="flex items-end gap-3">
-                      <span className="text-5xl font-semibold tracking-tight">{m.value}</span>
-                      <span className="rounded-full border border-border/40 bg-background/60 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-foreground/60 backdrop-blur">{m.delta}</span>
-                    </div>
-                    <p className="text-sm leading-relaxed text-foreground/70">{m.description}</p>
+          <motion.div variants={staggerContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {features.map((f) => (
+              <motion.div key={f.title} variants={fadeUp}>
+                <GlassCard className="h-full">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 border border-white/10 text-white mb-6">
+                    <f.icon className="h-5 w-5 text-zinc-300" />
                   </div>
-                </Card>
+                  <h3 className="text-lg font-medium tracking-tight text-white mb-2">{f.title}</h3>
+                  <p className="text-sm leading-relaxed text-zinc-400">{f.desc}</p>
+                </GlassCard>
               </motion.div>
             ))}
           </motion.div>
         </div>
 
-        {/* How It Works — adapted from features-5 */}
-        <div className="grid items-center gap-12 md:grid-cols-2 lg:grid-cols-5 lg:gap-24">
-          <div className="lg:col-span-2">
-            <h2 className="text-4xl font-semibold lg:text-5xl">Built for Facebook Sellers</h2>
-            <p className="mt-6 text-foreground/70">Stop drowning in your inbox. Add your products to Nuron AI, and let the AI handle the repetitive "price?", "delivery?", and "size?" questions. Step in only when the customer is ready to buy or needs special help.</p>
-            <ul className="mt-8 divide-y border-y divide-border border-border *:flex *:items-center *:gap-3 *:py-3 text-sm">
-              <li><FileText className="size-5 text-foreground/70" /> Easy product knowledge management</li>
-              <li><Zap className="size-5 text-foreground/70" /> Instant replies in Messenger</li>
-              <li><Users className="size-5 text-foreground/70" /> Smart human fallback system</li>
-              <li><Globe className="size-5 text-foreground/70" /> Native Banglish understanding</li>
+        {/* Metrics Section */}
+        <div className="space-y-16">
+          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }} className="mx-auto max-w-3xl text-center">
+            <Badge variant="outline" className="mb-6 inline-flex items-center gap-2 rounded-full border-white/10 bg-white/5 px-4 py-1.5 text-[10px] uppercase tracking-widest text-zinc-300 backdrop-blur-md shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+              <BarChart3 className="h-3 w-3" /> Realtime Insights
+            </Badge>
+            <h2 className="text-4xl font-semibold tracking-tighter md:text-5xl text-white">Real results from real sellers</h2>
+            <p className="mt-5 text-base leading-relaxed text-zinc-400 md:text-lg">See how social commerce businesses are saving time and increasing conversions.</p>
+          </motion.div>
+
+          <motion.div variants={staggerContainer} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.2 }} className="grid gap-4 md:grid-cols-2">
+            {metrics.map((m) => (
+              <motion.div key={m.label} variants={fadeUp}>
+                <GlassCard className="group relative transition-transform duration-300 hover:-translate-y-1">
+                  <div className="flex items-center justify-between mb-8">
+                    <span className="text-[10px] font-medium uppercase tracking-widest text-zinc-500">{m.label}</span>
+                    <ArrowUpRight className="h-4 w-4 text-zinc-600 transition-transform duration-300 group-hover:text-white group-hover:translate-x-1 group-hover:-translate-y-1" />
+                  </div>
+                  <div className="flex items-end gap-3 mb-2">
+                    <span className="text-5xl font-semibold tracking-tighter text-white">{m.value}</span>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-medium uppercase tracking-widest text-zinc-400 mb-1">{m.delta}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-zinc-500">{m.description}</p>
+                </GlassCard>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* How It Works */}
+        <div className="grid items-center gap-12 md:grid-cols-2 lg:grid-cols-5 lg:gap-24 pt-16">
+          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }} className="lg:col-span-2">
+            <h2 className="text-4xl font-semibold tracking-tighter lg:text-5xl text-white">Built for Facebook Sellers</h2>
+            <p className="mt-6 text-zinc-400 leading-relaxed">Stop drowning in your inbox. Add your products to Nuron AI, and let the AI handle the repetitive "price?", "delivery?", and "size?" questions. Step in only when the customer is ready to buy or needs special help.</p>
+            <ul className="mt-8 divide-y divide-white/5 border-y border-white/5 *:flex *:items-center *:gap-4 *:py-4 text-sm text-zinc-300 font-medium">
+              <li><FileText className="size-5 text-zinc-500" /> Easy product knowledge management</li>
+              <li><Zap className="size-5 text-zinc-500" /> Instant replies in Messenger</li>
+              <li><Users className="size-5 text-zinc-500" /> Smart human fallback system</li>
+              <li><Globe className="size-5 text-zinc-500" /> Native Banglish understanding</li>
             </ul>
-          </div>
-          <div className="border-border/50 relative rounded-3xl border p-3 lg:col-span-3">
-            <div className="rounded-2xl border border-border/30 bg-zinc-900/50 p-6 space-y-4">
+          </motion.div>
+          
+          <motion.div variants={fadeUp} initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.3 }} className="lg:col-span-3">
+            <div className="relative rounded-2xl border border-white/10 bg-black shadow-[0_20px_60px_-15px_rgba(0,0,0,1),inset_0_1px_0_0_rgba(255,255,255,0.1)] p-6 space-y-5">
               {/* Chat mockup */}
-              <div className="space-y-3">
-                <div className="flex gap-3"><div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center"><Bot className="h-4 w-4" /></div><div className="rounded-2xl rounded-tl-sm bg-zinc-800 px-4 py-3 max-w-xs text-sm">Hi there! 👋 How can I help you today?</div></div>
-                <div className="flex gap-3 justify-end"><div className="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-3 max-w-xs text-sm">bhai black t-shirt er price koto?</div></div>
-                <div className="flex gap-3"><div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center"><Bot className="h-4 w-4" /></div><div className="rounded-2xl rounded-tl-sm bg-zinc-800 px-4 py-3 max-w-xs text-sm">Black t-shirt er price 450 Taka. Delivery charge inside Dhaka 60 Tk, outside 120 Tk. Order confirm korben?</div></div>
-                <div className="flex gap-3 justify-end"><div className="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-3 max-w-xs text-sm">ha, cash on delivery hobe?</div></div>
-                <div className="flex gap-3"><div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center"><Bot className="h-4 w-4" /></div><div className="rounded-2xl rounded-tl-sm bg-zinc-800 px-4 py-3 max-w-xs text-sm">Ji, Cash on Delivery available! Apnar nam, phone number r address ta din order confirm korar jonno.</div></div>
+              <div className="space-y-4">
+                <div className="flex gap-3"><div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center shadow-inner"><Bot className="h-4 w-4 text-zinc-400" /></div><div className="rounded-2xl rounded-tl-sm bg-white/5 border border-white/5 px-4 py-3 max-w-xs text-[13px] text-zinc-300">Hi there! 👋 How can I help you today?</div></div>
+                <div className="flex gap-3 justify-end"><div className="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-3 max-w-xs text-[13px] text-white shadow-lg shadow-blue-900/20">bhai black t-shirt er price koto?</div></div>
+                <div className="flex gap-3"><div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center shadow-inner"><Bot className="h-4 w-4 text-zinc-400" /></div><div className="rounded-2xl rounded-tl-sm bg-white/5 border border-white/5 px-4 py-3 max-w-xs text-[13px] text-zinc-300">Black t-shirt er price 450 Taka. Delivery charge inside Dhaka 60 Tk, outside 120 Tk. Order confirm korben?</div></div>
+                <div className="flex gap-3 justify-end"><div className="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-3 max-w-xs text-[13px] text-white shadow-lg shadow-blue-900/20">ha, cash on delivery hobe?</div></div>
+                <div className="flex gap-3"><div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center shadow-inner"><Bot className="h-4 w-4 text-zinc-400" /></div><div className="rounded-2xl rounded-tl-sm bg-white/5 border border-white/5 px-4 py-3 max-w-xs text-[13px] text-zinc-300">Ji, Cash on Delivery available! Apnar nam, phone number r address ta din order confirm korar jonno.</div></div>
               </div>
-              <div className="flex gap-2"><div className="flex-1 h-10 rounded-lg bg-zinc-800/80 border border-border/30" /><div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center"><ArrowUpRight className="h-4 w-4 text-black" /></div></div>
+              <div className="flex gap-3 mt-6"><div className="flex-1 h-10 rounded-lg bg-white/5 border border-white/10" /><div className="h-10 w-10 rounded-lg bg-white flex items-center justify-center shadow-md shadow-white/10"><ArrowUpRight className="h-4 w-4 text-black" /></div></div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

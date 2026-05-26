@@ -41,17 +41,19 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 w-full border-b border-transparent transition-all duration-300",
-        scrolled && "bg-background/80 border-border backdrop-blur-xl"
+        "sticky top-0 z-50 w-full border-b transition-all duration-300",
+        scrolled 
+          ? "bg-black/60 border-white/5 backdrop-blur-md" 
+          : "bg-transparent border-transparent"
       )}
     >
-      <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6">
+      <nav className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white">
+          <div className="flex h-7 w-7 items-center justify-center rounded bg-white">
             <Zap className="h-4 w-4 text-black" />
           </div>
-          <span className="text-lg font-semibold tracking-tight">Nuron AI</span>
+          <span className="text-base font-medium tracking-tight text-white">Nuron AI</span>
         </Link>
 
         {/* Desktop Nav */}
@@ -60,7 +62,7 @@ export function Navbar() {
             <a
               key={link.label}
               href={link.href}
-              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
+              className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors rounded-md hover:bg-white/[0.04]"
             >
               {link.label}
             </a>
@@ -71,19 +73,19 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           {isAuthenticated ? (
             <Link href="/dashboard">
-              <Button size="sm" className="rounded-lg">
-                Dashboard <ChevronRight className="h-4 w-4 ml-1" />
+              <Button size="sm" className="h-8 rounded-lg bg-white text-black hover:bg-zinc-200 active:scale-[0.98] transition-all font-medium text-xs px-4">
+                Dashboard <ChevronRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           ) : (
             <>
               <Link href="/login">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                  Sign In
+                <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white hover:bg-white/[0.04] text-xs font-medium">
+                  Log in
                 </Button>
               </Link>
               <Link href="/signup">
-                <Button size="sm" className="rounded-lg bg-white text-black hover:bg-zinc-200">
+                <Button size="sm" className="h-8 rounded-lg bg-white text-black hover:bg-zinc-200 active:scale-[0.98] transition-all font-medium text-xs px-4">
                   Get Started Free
                 </Button>
               </Link>
@@ -96,7 +98,7 @@ export function Navbar() {
           size="icon"
           variant="ghost"
           onClick={() => setOpen(!open)}
-          className="md:hidden"
+          className="md:hidden text-zinc-400 hover:text-white hover:bg-white/[0.04]"
           aria-label="Toggle menu"
         >
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -105,30 +107,30 @@ export function Navbar() {
 
       {/* Mobile Menu */}
       {open && (
-        <div className="fixed inset-0 top-16 z-40 bg-background/95 backdrop-blur-lg md:hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="fixed inset-0 top-14 z-40 bg-black/95 backdrop-blur-lg md:hidden animate-in fade-in duration-200">
           <div className="flex flex-col p-6 gap-2">
             {navLinks.map((link) => (
               <a
                 key={link.label}
                 href={link.href}
                 onClick={() => setOpen(false)}
-                className="px-4 py-3 text-lg font-medium hover:bg-accent rounded-lg transition-colors"
+                className="px-4 py-3 text-lg font-medium text-zinc-300 hover:text-white hover:bg-white/[0.04] rounded-lg transition-colors"
               >
                 {link.label}
               </a>
             ))}
-            <div className="border-t border-border mt-4 pt-4 flex flex-col gap-2">
+            <div className="border-t border-white/10 mt-4 pt-4 flex flex-col gap-3">
               {isAuthenticated ? (
                 <Link href="/dashboard" onClick={() => setOpen(false)}>
-                  <Button className="w-full">Dashboard</Button>
+                  <Button className="w-full h-10 rounded-lg bg-white text-black hover:bg-zinc-200 font-medium">Dashboard</Button>
                 </Link>
               ) : (
                 <>
                   <Link href="/login" onClick={() => setOpen(false)}>
-                    <Button variant="outline" className="w-full">Sign In</Button>
+                    <Button variant="outline" className="w-full h-10 rounded-lg border-white/10 text-white bg-transparent hover:bg-white/[0.04] font-medium">Log in</Button>
                   </Link>
                   <Link href="/signup" onClick={() => setOpen(false)}>
-                    <Button className="w-full bg-white text-black hover:bg-zinc-200">Get Started Free</Button>
+                    <Button className="w-full h-10 rounded-lg bg-white text-black hover:bg-zinc-200 font-medium">Get Started Free</Button>
                   </Link>
                 </>
               )}

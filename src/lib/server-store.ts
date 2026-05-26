@@ -2,7 +2,7 @@
 // Multi-tenant: every function is scoped by user_id
 
 import { supabase } from "./supabase";
-import type { Product } from "./types";
+import type { Product, SentimentTag } from "./types";
 
 // ==================== User Settings ====================
 
@@ -11,9 +11,14 @@ export interface UserSettings {
   business_name?: string;
   business_description?: string;
   training_data?: string;
+  welcome_message?: string;
+  llm_provider?: string;
   puter_api_token?: string;
   groq_api_key?: string;
+  custom_api_key?: string;
   ai_personality?: string;
+  google_sheet_url?: string;
+  last_sync_time?: string;
 }
 
 export async function getUserSettings(userId: string): Promise<UserSettings | null> {
@@ -46,7 +51,6 @@ export interface BotConnection {
   status?: string;
 }
 
-/** Look up which user owns a bot by its bot_id */
 export async function getUserByBotId(botId: string, platform = "telegram"): Promise<string | null> {
   const { data } = await supabase
     .from("bot_connections")
@@ -58,24 +62,18 @@ export async function getUserByBotId(botId: string, platform = "telegram"): Prom
   return data?.user_id || null;
 }
 
-/** Save a bot connection for a user */
 export async function saveBotConnection(conn: BotConnection) {
   const { error } = await supabase.from("bot_connections").upsert(conn);
   if (error) console.error("[ServerStore] saveBotConnection error:", error.message);
 }
 
-/** Get all bot connections for a user */
 export async function getBotConnections(userId: string, platform?: string): Promise<BotConnection[]> {
-  let query = supabase
-    .from("bot_connections")
-    .select("*")
-    .eq("user_id", userId);
+  let query = supabase.from("bot_connections").select("*").eq("user_id", userId);
   if (platform) query = query.eq("platform", platform);
   const { data } = await query;
   return (data || []) as BotConnection[];
 }
 
-/** Get the bot token for a specific bot */
 export async function getBotToken(botId: string, platform = "telegram"): Promise<string | null> {
   const { data } = await supabase
     .from("bot_connections")
@@ -95,128 +93,98 @@ export async function getProductsByUser(userId: string): Promise<Product[]> {
     .eq("user_id", userId)
     .eq("status", "active")
     .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("[ServerStore] getProducts error:", error.message);
-    return [];
-  }
+  if (error) { console.error("[ServerStore] getProducts error:", error.message); return []; }
   return (data || []) as Product[];
 }
 
 export async function saveProduct(userId: string, product: Partial<Product>) {
   const { error } = await supabase.from("products").upsert({
-    ...product,
-    user_id: userId,
-    updated_at: new Date().toISOString(),
+    ...product, user_id: userId, updated_at: new Date().toISOString(),
   });
   if (error) console.error("[ServerStore] saveProduct error:", error.message);
 }
 
+export async function bulkUpsertProducts(userId: string, products: Partial<Product>[]): Promise<{ upserted: number; errors: number }> {
+  let upserted = 0, errors = 0;
+  for (const product of products) {
+    try {
+      const matchField = product.sku ? "sku" : "name";
+      const matchValue = product.sku || product.name;
+      if (!matchValue) { errors++; continue; }
+      const { data: existing } = await supabase.from("products").select("id").eq("user_id", userId).eq(matchField, matchValue).limit(1).single();
+      if (existing) {
+        const { error } = await supabase.from("products").update({ ...product, updated_at: new Date().toISOString() }).eq("id", existing.id);
+        error ? errors++ : upserted++;
+      } else {
+        const { error } = await supabase.from("products").insert({ ...product, user_id: userId, status: "active", created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+        error ? errors++ : upserted++;
+      }
+    } catch { errors++; }
+  }
+  return { upserted, errors };
+}
+
 // ==================== Conversations ====================
 
-export async function getOrCreateConversation(
-  userId: string,
-  visitorId: string,
-  visitorName?: string
-) {
-  const { data: existing } = await supabase
-    .from("conversations")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("visitor_id", visitorId)
-    .in("status", ["active", "needs_human"])
-    .order("last_message_at", { ascending: false })
-    .limit(1)
-    .single();
-
+export async function getOrCreateConversation(userId: string, visitorId: string, visitorName?: string) {
+  const { data: existing } = await supabase.from("conversations").select("*").eq("user_id", userId).eq("visitor_id", visitorId).in("status", ["active", "needs_human"]).order("last_message_at", { ascending: false }).limit(1).single();
   if (existing) return existing;
-
-  const { data: newConv, error } = await supabase
-    .from("conversations")
-    .insert({
-      user_id: userId,
-      visitor_id: visitorId,
-      visitor_name: visitorName || "User",
-      messages: [],
-      status: "active",
-      source: "telegram",
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("[ServerStore] createConversation error:", error.message);
-    return null;
-  }
+  const { data: newConv, error } = await supabase.from("conversations").insert({ user_id: userId, visitor_id: visitorId, visitor_name: visitorName || "User", messages: [], status: "active", source: "telegram" }).select().single();
+  if (error) { console.error("[ServerStore] createConversation error:", error.message); return null; }
   return newConv;
 }
 
-export async function appendMessage(
-  conversationId: string,
-  role: "user" | "assistant",
-  content: string
-) {
-  const { data: conv } = await supabase
-    .from("conversations")
-    .select("messages")
-    .eq("id", conversationId)
-    .single();
-
+export async function appendMessage(conversationId: string, role: "user" | "assistant", content: string, mediaUrl?: string) {
+  const { data: conv } = await supabase.from("conversations").select("messages").eq("id", conversationId).single();
   if (!conv) return;
-
   const messages = Array.isArray(conv.messages) ? conv.messages : [];
-  messages.push({
-    id: crypto.randomUUID(),
-    role,
-    content,
-    timestamp: new Date().toISOString(),
-  });
-
-  await supabase
-    .from("conversations")
-    .update({
-      messages,
-      last_message_at: new Date().toISOString(),
-    })
-    .eq("id", conversationId);
+  const msg: Record<string, unknown> = { id: crypto.randomUUID(), role, content, timestamp: new Date().toISOString() };
+  if (mediaUrl) msg.media_url = mediaUrl;
+  messages.push(msg);
+  const update: Record<string, unknown> = { messages, last_message_at: new Date().toISOString() };
+  if (mediaUrl) update.media_url = mediaUrl;
+  await supabase.from("conversations").update(update).eq("id", conversationId);
 }
 
 export async function flagConversation(conversationId: string, status: "needs_human" | "resolved") {
-  await supabase
-    .from("conversations")
-    .update({ status })
-    .eq("id", conversationId);
+  await supabase.from("conversations").update({ status }).eq("id", conversationId);
 }
 
-export async function getConversationHistory(
-  conversationId: string
-): Promise<{ role: "user" | "assistant"; content: string }[]> {
-  const { data } = await supabase
-    .from("conversations")
-    .select("messages")
-    .eq("id", conversationId)
-    .single();
-
+export async function getConversationHistory(conversationId: string): Promise<{ role: "user" | "assistant"; content: string }[]> {
+  const { data } = await supabase.from("conversations").select("messages").eq("id", conversationId).single();
   if (!data?.messages) return [];
-  return (data.messages as any[]).map((m) => ({
-    role: m.role,
-    content: m.content,
-  }));
+  return (data.messages as any[]).map((m) => ({ role: m.role, content: m.content }));
+}
+
+export async function updateConversationSentiment(conversationId: string, sentimentTag: SentimentTag, suggestedReplies?: string[], status?: string) {
+  const update: Record<string, unknown> = { sentiment_tag: sentimentTag };
+  if (suggestedReplies?.length) update.suggested_replies = suggestedReplies;
+  if (status) update.status = status;
+  const { error } = await supabase.from("conversations").update(update).eq("id", conversationId);
+  if (error) console.error("[ServerStore] updateConversationSentiment error:", error.message);
+}
+
+export async function getAbandonedCartCandidates(): Promise<any[]> {
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase.from("conversations").select("*").eq("sentiment_tag", "ready_to_buy").in("status", ["ai_handled", "active"]).eq("abandoned_cart_triggered", false).lt("last_message_at", twoHoursAgo).limit(50);
+  if (error) { console.error("[ServerStore] getAbandonedCartCandidates error:", error.message); return []; }
+  return data || [];
+}
+
+export async function markAbandonedCartTriggered(conversationId: string) {
+  await supabase.from("conversations").update({ abandoned_cart_triggered: true }).eq("id", conversationId);
 }
 
 // ==================== Leads ====================
 
-export async function createLead(lead: {
-  user_id: string;
-  name: string;
-  phone?: string;
-  product_interest?: string;
-  buying_intent: "hot" | "warm" | "cold";
-  source?: string;
-}) {
-  const { error } = await supabase.from("leads").insert({
-    ...lead,
-    source: lead.source || "telegram",
-  });
+export async function createLead(lead: { user_id: string; name: string; phone?: string; product_interest?: string; buying_intent: "hot" | "warm" | "cold"; source?: string }) {
+  const { error } = await supabase.from("leads").insert({ ...lead, source: lead.source || "telegram" });
   if (error) console.error("[ServerStore] createLead error:", error.message);
+}
+
+// ==================== Knowledge Base ====================
+
+export async function getKnowledgeBase(userId: string) {
+  const { data } = await supabase.from("knowledge_base").select("title, content, category").eq("user_id", userId).eq("is_active", true);
+  return data || [];
 }

@@ -1,3 +1,39 @@
+// ==================== Sentiment & Classification Types ====================
+
+export type SentimentTag = "ready_to_buy" | "window_shopper" | "frustrated";
+export type ConversationStatus = "ai_handled" | "needs_human" | "human_handled" | "active" | "resolved" | "archived";
+
+export interface SentimentResult {
+  tag: SentimentTag;
+  confidence: number;
+  shouldHandoff: boolean;
+  reason?: string;
+}
+
+export interface EnrichedLLMResult {
+  content: string;
+  provider: string;
+  model: string;
+  tokensUsed?: number;
+  sentiment: SentimentResult;
+  suggestedReplies: string[];
+  matchedProducts: MatchedProduct[];
+  debug: {
+    systemPromptUsed: string;
+    classificationRaw?: string;
+    processingTimeMs: number;
+  };
+}
+
+export interface MatchedProduct {
+  id: string;
+  name: string;
+  price: string;
+  stock_status: string;
+  similarity?: number;
+  image_url?: string;
+}
+
 // ==================== Agent Types ====================
 export interface Agent {
   id: string;
@@ -76,6 +112,7 @@ export interface Product {
   faq?: { question: string; answer: string }[];
   image_urls?: string[];
   product_url?: string;
+  sku?: string;
   status: "active" | "draft" | "archived";
   created_at: string;
   updated_at: string;
@@ -85,12 +122,17 @@ export interface Product {
 export interface Conversation {
   id: string;
   agent_id: string;
+  user_id?: string;
   visitor_id: string; // e.g. Messenger PSID
   visitor_name?: string;
   messages: ChatMessage[];
-  status: "active" | "needs_human" | "resolved" | "archived";
+  status: ConversationStatus;
+  sentiment_tag?: SentimentTag;
+  abandoned_cart_triggered?: boolean;
+  suggested_replies?: string[];
+  media_url?: string;
   lead_id?: string;
-  source?: "messenger" | "facebook_page";
+  source?: "messenger" | "facebook_page" | "telegram" | "whatsapp" | "widget";
   started_at: string;
   last_message_at: string;
 }
@@ -100,6 +142,7 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
+  media_url?: string;
 }
 
 // ==================== Analytics Types ====================

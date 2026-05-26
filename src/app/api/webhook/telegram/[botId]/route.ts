@@ -15,6 +15,7 @@ import {
   getUserByBotId,
   getBotToken,
   getUserSettings,
+  getKnowledgeBase,
 } from "@/lib/server-store";
 
 // ─── Telegram Helpers ───
@@ -110,9 +111,11 @@ export async function POST(
     // /start command
     if (customerMessage === "/start") {
       const shopName = settings?.business_name || "our shop";
-      await sendTelegramMessage(botToken, chatId,
-        `👋 Hey! Welcome to <b>${shopName}</b>.\nAsk me anything about our products — prices, sizes, colors, stock, delivery. You can also send a product photo and I'll find it for you! 📸`
-      );
+      const customWelcome = settings?.welcome_message;
+      const welcomeText = customWelcome
+        ? customWelcome.replace('{name}', senderName).replace('{shop}', shopName)
+        : `👋 Hey ${senderName}! Welcome to <b>${shopName}</b>.\nAsk me anything about our products — prices, sizes, colors, stock, delivery. You can also send a product photo and I'll find it for you! 📸`;
+      await sendTelegramMessage(botToken, chatId, welcomeText);
       return NextResponse.json({ ok: true }, { status: 200 });
     }
 
@@ -170,7 +173,15 @@ async function handleTextMessage(
 
   const products = await getProductsByUser(userId);
   const history = await getConversationHistory(conversation.id);
-  const systemPrompt = buildSystemPrompt(products, settings?.business_name || "our shop", settings?.business_description, settings?.training_data);
+  const knowledgeEntries = await getKnowledgeBase(userId);
+  const systemPrompt = buildSystemPrompt(
+    products,
+    settings?.business_name || "our shop",
+    settings?.business_description,
+    settings?.training_data,
+    knowledgeEntries,
+    settings?.welcome_message
+  );
   const aiReply = await generateAIReply(systemPrompt, history, aiKeys);
 
   const sent = await sendTelegramMessage(botToken, chatId, aiReply);

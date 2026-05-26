@@ -8,7 +8,7 @@ import { saveBotConnection, getBotConnections, saveUserSettings, getUserSettings
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { user_id, bot_token, puter_api_token, groq_api_key, business_name, business_description, training_data, disconnect_bot_id } = body;
+    const { user_id, bot_token, puter_api_token, groq_api_key, business_name, business_description, training_data, welcome_message, disconnect_bot_id } = body;
 
     if (!user_id) {
       return NextResponse.json({ error: "user_id is required" }, { status: 400 });
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Save AI keys + business info ───
-    const hasSettings = puter_api_token || groq_api_key || business_name || business_description !== undefined || training_data !== undefined;
+    const hasSettings = puter_api_token || groq_api_key || business_name || business_description !== undefined || training_data !== undefined || welcome_message !== undefined;
     if (hasSettings) {
       await saveUserSettings(user_id, {
         ...(puter_api_token && { puter_api_token }),
@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
         ...(business_name && { business_name }),
         ...(business_description !== undefined && { business_description }),
         ...(training_data !== undefined && { training_data }),
+        ...(welcome_message !== undefined && { welcome_message }),
       });
     }
 
@@ -111,6 +112,7 @@ export async function GET(request: NextRequest) {
       business_name: settings?.business_name || "",
       business_description: settings?.business_description || "",
       training_data: settings?.training_data || "",
+      welcome_message: (settings as any)?.welcome_message || "",
       has_puter_token: !!settings?.puter_api_token,
       has_groq_key: !!settings?.groq_api_key,
     },

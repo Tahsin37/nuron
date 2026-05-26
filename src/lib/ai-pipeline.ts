@@ -43,15 +43,32 @@ export function buildSystemPrompt(
   products: Product[],
   sellerName?: string,
   businessDescription?: string,
-  trainingData?: string
+  trainingData?: string,
+  knowledgeBase?: { title: string; content: string; category: string }[],
+  welcomeMessage?: string
 ): string {
   const productCatalog = buildProductContext(products);
   const seller = sellerName || "the seller";
 
-  let prompt = `You are an AI sales assistant for ${seller}. You reply to customer messages.`;
+  let prompt = `You are an AI sales assistant for ${seller}. You reply to customer messages on behalf of the business.`;
 
   if (businessDescription) {
     prompt += `\n\nABOUT THIS BUSINESS:\n${businessDescription}`;
+  }
+
+  // Knowledge Base
+  if (knowledgeBase && knowledgeBase.length > 0) {
+    const grouped: Record<string, string[]> = {};
+    knowledgeBase.forEach(kb => {
+      const cat = kb.category || "general";
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(`### ${kb.title}\n${kb.content}`);
+    });
+    prompt += `\n\n═══════ KNOWLEDGE BASE ═══════\nUse this information to answer customer questions accurately. This is your primary source of truth.\n`;
+    for (const [cat, entries] of Object.entries(grouped)) {
+      prompt += `\n── ${cat.toUpperCase().replace('_', ' ')} ──\n${entries.join("\n\n")}\n`;
+    }
+    prompt += `═══════════════════════════════`;
   }
 
   prompt += `\n\nCRITICAL LANGUAGE RULE:
@@ -65,12 +82,12 @@ export function buildSystemPrompt(
 RULES:
 1. Be friendly, natural, and helpful — like a real shop assistant.
 2. Keep replies SHORT (1-3 sentences max). This is chat, not email.
-3. ALWAYS use the product database below for prices, stock, and details. NEVER guess or make up prices.
+3. ALWAYS use the product catalog and knowledge base for prices, stock, policies, and details. NEVER guess or make up information.
 4. If a product is out of stock, say so honestly and suggest alternatives if available.
 5. If the customer seems ready to order, ask for: Name, Phone Number, Address, and which product/variant they want.
-6. If you genuinely don't know the answer, say you'll check with the team. The system will flag it for human review.
+6. If you genuinely don't know the answer from the knowledge base or product catalog, say you'll check with the team. The system will flag it for human review.
 7. Never reveal that you are an AI. Act as a helpful team member.
-8. For delivery questions, use the delivery info from the product database.
+8. For delivery questions, use the delivery info from the product database or knowledge base.
 9. If someone asks "last price" or bargains, politely say the price is fixed unless a discount exists.
 10. If the customer greets you (hi, hello, hey), greet back warmly and ask how you can help.
 
@@ -78,11 +95,14 @@ PRODUCT CATALOG:
 ${productCatalog}`;
 
   if (trainingData) {
-    prompt += `\n\nEXAMPLE CONVERSATIONS (learn the tone and style from these):
-${trainingData}`;
+    prompt += `\n\nEXAMPLE CONVERSATIONS (learn the tone and style from these):\n${trainingData}`;
   }
 
-  prompt += `\n\nRemember: You are selling. Be persuasive but honest. Your goal is to convert conversations into orders.`;
+  if (welcomeMessage) {
+    prompt += `\n\nWhen customers first message or say hi, use this style of greeting: "${welcomeMessage}"`;
+  }
+
+  prompt += `\n\nRemember: You are selling. Be persuasive but honest. Your goal is to convert conversations into orders while providing excellent customer service.`;
 
   return prompt;
 }
@@ -144,7 +164,7 @@ async function callPuterAI(messages: any[], token: string): Promise<string | nul
         interface: "puter-chat-completion",
         driver: "openai-completion",
         method: "complete",
-        args: { messages, model: "gpt-4o-mini", max_tokens: 250, temperature: 0.7 },
+        args: { messages, model: "gpt-4.1", max_tokens: 500, temperature: 0.7 },
       }),
     });
     if (!res.ok) { console.error("[Puter AI]", await res.text()); return null; }
@@ -162,9 +182,9 @@ async function callGroqAI(messages: any[], key: string, model?: string): Promise
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
-        model: model || "llama-3.3-70b-versatile",
+        model: model || "meta-llama/llama-4-scout-17b-16e-instruct",
         messages,
-        max_tokens: 250,
+        max_tokens: 500,
         temperature: 0.7,
       }),
     });

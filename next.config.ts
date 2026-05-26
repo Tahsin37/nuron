@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
+          // Allow Puter.js auth popup to communicate back
+          { key: "Cross-Origin-Opener-Policy", value: "unsafe-none" },
           // Prevent clickjacking
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           // Prevent MIME type sniffing
